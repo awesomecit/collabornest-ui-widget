@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CollaborNest WebSocket Testing Interface</title>
+  
+  <!-- Socket.IO Client from CDN -->
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background-color: #F9FAFB;
+      color: #111827;
+      padding: 20px;
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    header {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    h1 {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      color: #6B7280;
+      font-size: 14px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+
+    .panel {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .panel-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 16px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .status-badge.disconnected {
+      background: #F3F4F6;
+      color: #6B7280;
+    }
+
+    .status-badge.connecting {
+      background: #FEF3C7;
+      color: #92400E;
+    }
+
+    .status-badge.connected {
+      background: #D1FAE5;
+      color: #065F46;
+    }
+
+    .status-badge.error {
+      background: #FEE2E2;
+      color: #991B1B;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    label {
+      display: block;
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 6px;
+      color: #374151;
+    }
+
+    input[type="text"],
+    textarea {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #D1D5DB;
+      border-radius: 6px;
+      font-size: 14px;
+      font-family: 'Courier New', monospace;
+      transition: border-color 0.2s;
+    }
+
+    input[type="text"]:focus,
+    textarea:focus {
+      outline: none;
+      border-color: #3B82F6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 100px;
+    }
+
+    button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-primary {
+      background: #3B82F6;
+      color: white;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: #2563EB;
+    }
+
+    .btn-secondary {
+      background: #6B7280;
+      color: white;
+    }
+
+    .btn-secondary:hover:not(:disabled) {
+      background: #4B5563;
+    }
+
+    .btn-danger {
+      background: #EF4444;
+      color: white;
+    }
+
+    .btn-danger:hover:not(:disabled) {
+      background: #DC2626;
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 10px;
+    }
+
+    .radio-group {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .radio-group label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: normal;
+      cursor: pointer;
+    }
+
+    .radio-group input[type="radio"] {
+      width: auto;
+    }
+
+    .current-resource {
+      background: #EFF6FF;
+      border: 1px solid #BFDBFE;
+      padding: 12px;
+      border-radius: 6px;
+      margin-bottom: 16px;
+      font-size: 14px;
+    }
+
+    .user-card {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      border: 1px solid #E5E7EB;
+      border-radius: 6px;
+      margin-bottom: 8px;
+    }
+
+    .user-card.you {
+      background: #F0FDF4;
+      border-color: #86EFAC;
+    }
+
+    .user-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #667EEA 0%, #764BA2 100%);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 16px;
+    }
+
+    .user-info {
+      flex: 1;
+    }
+
+    .user-name {
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .user-email {
+      font-size: 12px;
+      color: #6B7280;
+    }
+
+    .mode-badge {
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .mode-badge.editor {
+      background: #DDD6FE;
+      color: #5B21B6;
+    }
+
+    .mode-badge.viewer {
+      background: #DBEAFE;
+      color: #1E40AF;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px;
+      color: #9CA3AF;
+      font-size: 14px;
+    }
+
+    .event-log {
+      max-height: 400px;
+      overflow-y: auto;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      background: #1F2937;
+      color: #F3F4F6;
+      padding: 16px;
+      border-radius: 6px;
+    }
+
+    .event-entry {
+      margin-bottom: 8px;
+      padding: 8px;
+      border-radius: 4px;
+      background: rgba(255,255,255,0.05);
+    }
+
+    .event-timestamp {
+      color: #9CA3AF;
+      margin-right: 8px;
+    }
+
+    .event-type {
+      font-weight: 700;
+      margin-right: 8px;
+    }
+
+    .event-type.connect { color: #10B981; }
+    .event-type.connect_error { color: #EF4444; }
+    .event-type.disconnect { color: #F59E0B; }
+    .event-type.resource_joined { color: #3B82F6; }
+    .event-type.resource_left { color: #8B5CF6; }
+    .event-type.user_joined { color: #06B6D4; }
+    .event-type.user_left { color: #F97316; }
+    .event-type.server_shutdown { color: #DC2626; font-weight: 900; }
+
+    .event-data {
+      color: #D1D5DB;
+      white-space: pre-wrap;
+      margin-top: 4px;
+      padding-left: 16px;
+      font-size: 11px;
+    }
+
+    .socket-id {
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      color: #6B7280;
+      margin-top: 8px;
+    }
+
+    @media (max-width: 1024px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🔌 CollaborNest WebSocket Testing Interface</h1>
+      <p class="subtitle">Real-time collaboration presence tracking - Single Page MVP</p>
+    </header>
+
+    <div class="grid">
+      <!-- Connection Panel -->
+      <div class="panel">
+        <div class="panel-title">
+          🔐 Connection Panel
+          <span id="connectionStatus" class="status-badge disconnected">⚪ Disconnected</span>
+        </div>
+
+        <div class="form-group">
+          <label for="jwtToken">JWT Token</label>
+          <textarea id="jwtToken" placeholder="Paste JWT token or click Generate"></textarea>
+        </div>
+
+        <div class="btn-group">
+          <button id="generateJwtBtn" class="btn-secondary">Generate JWT</button>
+          <button id="connectBtn" class="btn-primary">Connect to WebSocket</button>
+        </div>
+
+        <div id="socketIdDisplay" class="socket-id" style="display: none;">
+          Socket ID: <span id="socketId"></span>
+        </div>
+      </div>
+
+      <!-- Resource Control Panel -->
+      <div class="panel">
+        <div class="panel-title">📁 Resource Control</div>
+
+        <div id="currentResourceDisplay" class="current-resource" style="display: none;">
+          Currently in: <strong id="currentResourceId"></strong> (<span id="currentMode"></span> mode)
+        </div>
+
+        <div class="form-group">
+          <label for="resourceId">Resource ID</label>
+          <input type="text" id="resourceId" placeholder="document:123 | page:/patient/456 | form:789">
+        </div>
+
+        <div class="form-group">
+          <label>Mode</label>
+          <div class="radio-group">
+            <label>
+              <input type="radio" name="mode" value="editor" checked>
+              🖊️ Editor
+            </label>
+            <label>
+              <input type="radio" name="mode" value="viewer">
+              👁️ Viewer
+            </label>
+          </div>
+        </div>
+
+        <div class="btn-group">
+          <button id="joinBtn" class="btn-primary" disabled>Join as Editor</button>
+          <button id="leaveBtn" class="btn-danger" style="display: none;">Leave Resource</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <!-- Active Users Panel -->
+      <div class="panel">
+        <div class="panel-title">👥 Active Users (<span id="userCount">0</span>)</div>
+        <div id="activeUsersContainer">
+          <div class="empty-state">No active users. Join a resource to see collaborators.</div>
+        </div>
+      </div>
+
+      <!-- Event Log Panel -->
+      <div class="panel">
+        <div class="panel-title">
+          📊 Event Log
+          <button id="clearLogBtn" class="btn-secondary" style="margin-left: auto; padding: 6px 12px; font-size: 12px;">Clear</button>
+        </div>
+        <div id="eventLog" class="event-log">
+          <div class="event-entry">
+            <span class="event-timestamp">[--:--:--]</span>
+            <span class="event-type">SYSTEM</span>
+            <span>Waiting for connection...</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ============================================================================
+    // JWT Generator (Browser-Safe, No Node.js Crypto)
+    // ============================================================================
+
+    const JWT_SECRET = 'your_super_secure_jwt_secret_32_characters_minimum';
+    const JWT_ISSUER = 'collabornest';
+    const JWT_AUDIENCE = 'collabornest-users';
+
+    function base64UrlEncode(str) {
+      return btoa(str)
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=/g, '');
+    }
+
+    async function hmacSha256(key, data) {
+      const encoder = new TextEncoder();
+      const keyData = encoder.encode(key);
+      const cryptoKey = await crypto.subtle.importKey(
+        'raw',
+        keyData,
+        { name: 'HMAC', hash: 'SHA-256' },
+        false,
+        ['sign']
+      );
+      const signature = await crypto.subtle.sign('HMAC', cryptoKey, encoder.encode(data));
+      return new Uint8Array(signature);
+    }
+
+    function arrayBufferToBase64Url(buffer) {
+      const bytes = new Uint8Array(buffer);
+      let binary = '';
+      for (let i = 0; i < bytes.length; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      return base64UrlEncode(binary);
+    }
+
+    async function generateJWT() {
+      const userId = 'test-user-' + Math.random().toString(36).substring(2, 9);
+      const username = 'user_' + userId.split('-')[2]; // Match backend test format
+      const email = `${userId}@example.com`;
+
+      const header = {
+        alg: 'HS256',
+        typ: 'JWT'
+      };
+
+      const now = Math.floor(Date.now() / 1000);
+      const payload = {
+        sub: userId,
+        username: username,
+        email: email,
+        iss: JWT_ISSUER,
+        aud: JWT_AUDIENCE,
+        iat: now,
+        exp: now + 3600 // 1 hour expiration
+      };
+
+      const encodedHeader = base64UrlEncode(JSON.stringify(header));
+      const encodedPayload = base64UrlEncode(JSON.stringify(payload));
+      const dataToSign = encodedHeader + '.' + encodedPayload;
+
+      const signature = await hmacSha256(JWT_SECRET, dataToSign);
+      const encodedSignature = arrayBufferToBase64Url(signature);
+
+      return dataToSign + '.' + encodedSignature;
+    }
+
+    // ============================================================================
+    // WebSocket Service
+    // ============================================================================
+
+    class WebSocketService {
+      constructor() {
+        this.socket = null;
+        this.isConnected = false;
+        this.currentResource = null;
+        this.currentMode = null;
+        this.activeUsers = [];
+      }
+
+      connect(jwtToken) {
+        if (this.socket) {
+          this.disconnect();
+        }
+
+        this.socket = io('http://localhost:3000/collaboration', {
+          path: '/ws/socket.io',
+          auth: { token: jwtToken },
+          transports: ['websocket', 'polling'],
+          reconnection: true,
+          reconnectionDelay: 1000,
+          reconnectionAttempts: 5
+        });
+
+        this.setupEventListeners();
+      }
+
+      setupEventListeners() {
+        this.socket.on('connect', () => {
+          this.isConnected = true;
+          this.logEvent('connect', { socketId: this.socket.id });
+          updateConnectionStatus('connected', this.socket.id);
+        });
+
+        this.socket.on('connect_error', (error) => {
+          this.isConnected = false;
+          this.logEvent('connect_error', { error: error.message });
+          updateConnectionStatus('error', null, error.message);
+          alert('Connection failed: ' + error.message);
+        });
+
+        this.socket.on('disconnect', (reason) => {
+          this.isConnected = false;
+          this.currentResource = null;
+          this.activeUsers = [];
+          this.logEvent('disconnect', { reason });
+          updateConnectionStatus('disconnected');
+          clearCurrentResource();
+          clearActiveUsers();
+        });
+
+        this.socket.on('resource:joined', (data) => {
+          this.logEvent('resource_joined', data);
+          if (data.success) {
+            this.currentResource = data.resourceId;
+            this.currentMode = data.users.find(u => u.socketId === this.socket.id)?.mode;
+            this.activeUsers = data.users;
+            updateCurrentResource(data.resourceId, this.currentMode);
+            updateActiveUsers(data.users, this.socket.id);
+          } else {
+            alert('Join failed: ' + (data.message || 'Unknown error'));
+          }
+        });
+
+        this.socket.on('resource:left', (data) => {
+          this.logEvent('resource_left', data);
+          if (data.success) {
+            this.currentResource = null;
+            this.currentMode = null;
+            this.activeUsers = [];
+            clearCurrentResource();
+            clearActiveUsers();
+          }
+        });
+
+        this.socket.on('user:joined', (data) => {
+          this.logEvent('user_joined', data);
+          // data is flat: { resourceId, userId, username, email, socketId, mode, joinedAt }
+          this.activeUsers.push({
+            userId: data.userId,
+            username: data.username,
+            email: data.email,
+            socketId: data.socketId,
+            mode: data.mode,
+            joinedAt: data.joinedAt
+          });
+          updateActiveUsers(this.activeUsers, this.socket.id);
+        });
+
+        this.socket.on('user:left', (data) => {
+          this.logEvent('user_left', data);
+          // data is flat: { resourceId, userId, username, email, reason }
+          this.activeUsers = this.activeUsers.filter(u => u.userId !== data.userId);
+          updateActiveUsers(this.activeUsers, this.socket.id);
+        });
+
+        this.socket.on('SERVER_SHUTDOWN', (data) => {
+          this.logEvent('server_shutdown', data);
+          alert('⚠️ ' + data.message);
+        });
+      }
+
+      disconnect() {
+        if (this.socket) {
+          this.socket.disconnect();
+          this.socket = null;
+          this.isConnected = false;
+        }
+      }
+
+      joinResource(resourceId, mode) {
+        if (!this.isConnected) {
+          alert('Not connected to WebSocket');
+          return;
+        }
+        this.socket.emit('resource:join', { resourceId, mode });
+      }
+
+      leaveResource(resourceId) {
+        if (!this.isConnected) {
+          alert('Not connected to WebSocket');
+          return;
+        }
+        this.socket.emit('resource:leave', { resourceId });
+      }
+
+      logEvent(type, data) {
+        const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false });
+        addEventLogEntry(timestamp, type, data);
+      }
+    }
+
+    const wsService = new WebSocketService();
+
+    // ============================================================================
+    // UI Update Functions
+    // ============================================================================
+
+    function updateConnectionStatus(status, socketId = null, errorMsg = null) {
+      const statusBadge = document.getElementById('connectionStatus');
+      const socketIdDisplay = document.getElementById('socketIdDisplay');
+      const socketIdSpan = document.getElementById('socketId');
+      const connectBtn = document.getElementById('connectBtn');
+      const joinBtn = document.getElementById('joinBtn');
+
+      if (status === 'connected') {
+        statusBadge.className = 'status-badge connected';
+        statusBadge.innerHTML = '🟢 Connected';
+        connectBtn.textContent = 'Disconnect';
+        connectBtn.className = 'btn-danger';
+        socketIdDisplay.style.display = 'block';
+        socketIdSpan.textContent = socketId;
+        joinBtn.disabled = false;
+      } else if (status === 'connecting') {
+        statusBadge.className = 'status-badge connecting';
+        statusBadge.innerHTML = '🟡 Connecting...';
+        connectBtn.disabled = true;
+      } else if (status === 'error') {
+        statusBadge.className = 'status-badge error';
+        statusBadge.innerHTML = '🔴 Error';
+        connectBtn.textContent = 'Connect to WebSocket';
+        connectBtn.className = 'btn-primary';
+        connectBtn.disabled = false;
+        socketIdDisplay.style.display = 'none';
+        joinBtn.disabled = true;
+      } else {
+        statusBadge.className = 'status-badge disconnected';
+        statusBadge.innerHTML = '⚪ Disconnected';
+        connectBtn.textContent = 'Connect to WebSocket';
+        connectBtn.className = 'btn-primary';
+        connectBtn.disabled = false;
+        socketIdDisplay.style.display = 'none';
+        joinBtn.disabled = true;
+      }
+    }
+
+    function updateCurrentResource(resourceId, mode) {
+      const display = document.getElementById('currentResourceDisplay');
+      const resourceIdSpan = document.getElementById('currentResourceId');
+      const modeSpan = document.getElementById('currentMode');
+      const joinBtn = document.getElementById('joinBtn');
+      const leaveBtn = document.getElementById('leaveBtn');
+
+      display.style.display = 'block';
+      resourceIdSpan.textContent = resourceId;
+      modeSpan.textContent = mode;
+      joinBtn.style.display = 'none';
+      leaveBtn.style.display = 'inline-block';
+    }
+
+    function clearCurrentResource() {
+      const display = document.getElementById('currentResourceDisplay');
+      const joinBtn = document.getElementById('joinBtn');
+      const leaveBtn = document.getElementById('leaveBtn');
+
+      display.style.display = 'none';
+      joinBtn.style.display = 'inline-block';
+      leaveBtn.style.display = 'none';
+    }
+
+    function updateActiveUsers(users, currentSocketId) {
+      const container = document.getElementById('activeUsersContainer');
+      const countSpan = document.getElementById('userCount');
+
+      countSpan.textContent = users.length;
+
+      if (users.length === 0) {
+        container.innerHTML = '<div class="empty-state">No active users. Join a resource to see collaborators.</div>';
+        return;
+      }
+
+      container.innerHTML = users.map(user => {
+        const isYou = user.socketId === currentSocketId;
+        // Fallback: use email if username is missing or looks like email
+        const displayName = user.username || user.email || 'Unknown User';
+        const initials = displayName.substring(0, 2).toUpperCase();
+        
+        return `
+          <div class="user-card ${isYou ? 'you' : ''}">
+            <div class="user-avatar">${initials}</div>
+            <div class="user-info">
+              <div class="user-name">${displayName}${isYou ? ' (You)' : ''}</div>
+              <div class="user-email">${user.email || 'No email'}</div>
+            </div>
+            <span class="mode-badge ${user.mode || 'viewer'}">${user.mode || 'viewer'}</span>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function clearActiveUsers() {
+      const container = document.getElementById('activeUsersContainer');
+      const countSpan = document.getElementById('userCount');
+      countSpan.textContent = '0';
+      container.innerHTML = '<div class="empty-state">No active users. Join a resource to see collaborators.</div>';
+    }
+
+    function addEventLogEntry(timestamp, type, data) {
+      const eventLog = document.getElementById('eventLog');
+      const entry = document.createElement('div');
+      entry.className = 'event-entry';
+
+      const dataStr = JSON.stringify(data, null, 2);
+      
+      entry.innerHTML = `
+        <span class="event-timestamp">[${timestamp}]</span>
+        <span class="event-type ${type}">${type.toUpperCase().replace('_', ' ')}</span>
+        <div class="event-data">${dataStr}</div>
+      `;
+
+      eventLog.insertBefore(entry, eventLog.firstChild);
+
+      // Auto-scroll to top (newest first)
+      eventLog.scrollTop = 0;
+
+      // Keep only last 100 entries
+      while (eventLog.children.length > 100) {
+        eventLog.removeChild(eventLog.lastChild);
+      }
+    }
+
+    // ============================================================================
+    // Event Handlers
+    // ============================================================================
+
+    document.getElementById('generateJwtBtn').addEventListener('click', async () => {
+      const jwtToken = await generateJWT();
+      document.getElementById('jwtToken').value = jwtToken;
+      addEventLogEntry(new Date().toLocaleTimeString('en-US', { hour12: false }), 'SYSTEM', { message: 'JWT token generated' });
+    });
+
+    document.getElementById('connectBtn').addEventListener('click', () => {
+      if (wsService.isConnected) {
+        wsService.disconnect();
+        updateConnectionStatus('disconnected');
+      } else {
+        const jwtToken = document.getElementById('jwtToken').value.trim();
+        if (!jwtToken) {
+          alert('Please enter or generate a JWT token');
+          return;
+        }
+        updateConnectionStatus('connecting');
+        wsService.connect(jwtToken);
+      }
+    });
+
+    document.getElementById('joinBtn').addEventListener('click', () => {
+      const resourceId = document.getElementById('resourceId').value.trim();
+      const mode = document.querySelector('input[name="mode"]:checked').value;
+
+      if (!resourceId) {
+        alert('Please enter a resource ID');
+        return;
+      }
+
+      wsService.joinResource(resourceId, mode);
+    });
+
+    document.getElementById('leaveBtn').addEventListener('click', () => {
+      if (wsService.currentResource) {
+        wsService.leaveResource(wsService.currentResource);
+      }
+    });
+
+    document.getElementById('clearLogBtn').addEventListener('click', () => {
+      const eventLog = document.getElementById('eventLog');
+      eventLog.innerHTML = '<div class="event-entry"><span class="event-timestamp">[--:--:--]</span><span class="event-type">SYSTEM</span><span>Log cleared</span></div>';
+    });
+
+    // Update join button text based on mode selection
+    document.querySelectorAll('input[name="mode"]').forEach(radio => {
+      radio.addEventListener('change', (e) => {
+        const joinBtn = document.getElementById('joinBtn');
+        joinBtn.textContent = 'Join as ' + (e.target.value === 'editor' ? 'Editor' : 'Viewer');
+      });
+    });
+
+    // Expose wsService globally for debugging
+    window.wsService = wsService;
+  </script>
+</body>
+</html>
