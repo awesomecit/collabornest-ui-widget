@@ -1,0 +1,1146 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CollaborNest - Surgical Reports</title>
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --primary-color: #2563eb;
+      --success-color: #10b981;
+      --warning-color: #f59e0b;
+      --danger-color: #ef4444;
+      --gray-50: #f9fafb;
+      --gray-100: #f3f4f6;
+      --gray-200: #e5e7eb;
+      --gray-300: #d1d5db;
+      --gray-700: #374151;
+      --gray-900: #111827;
+      --editor-color: #8b5cf6;
+      --viewer-color: #3b82f6;
+      --border-radius: 8px;
+      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+      --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+      --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: var(--gray-50);
+      color: var(--gray-900);
+      line-height: 1.5;
+    }
+
+    .app-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    /* HEADER */
+    .app-header {
+      background: white;
+      border-radius: var(--border-radius);
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .app-title {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--primary-color);
+    }
+
+    .app-subtitle {
+      font-size: 14px;
+      color: var(--gray-700);
+      margin-top: 4px;
+    }
+
+    .user-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .user-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--primary-color);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+    }
+
+    .connection-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .connection-status.connected {
+      background: #d1fae5;
+      color: #065f46;
+    }
+
+    .connection-status.disconnected {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .status-indicator {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    /* REPORTS LIST */
+    .reports-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+      gap: 20px;
+    }
+
+    .report-card {
+      background: white;
+      border-radius: var(--border-radius);
+      padding: 20px;
+      box-shadow: var(--shadow-sm);
+      border: 2px solid transparent;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .report-card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+    }
+
+    .report-card.has-viewers {
+      border-color: var(--viewer-color);
+      background: #eff6ff;
+    }
+
+    .report-card.has-editors {
+      border-color: var(--success-color);
+      background: #f0fdf4;
+    }
+
+    .report-card.has-conflict {
+      border-color: var(--warning-color);
+      background: #fffbeb;
+    }
+
+    .report-header {
+      display: flex;
+      justify-content: between;
+      align-items: start;
+      margin-bottom: 12px;
+    }
+
+    .report-id {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--gray-700);
+      background: var(--gray-100);
+      padding: 4px 8px;
+      border-radius: 4px;
+    }
+
+    .report-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--gray-900);
+      margin: 8px 0;
+    }
+
+    .report-meta {
+      font-size: 14px;
+      color: var(--gray-700);
+      margin-bottom: 16px;
+    }
+
+    .report-users {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--gray-200);
+    }
+
+    .user-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      border-radius: 16px;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .user-badge.editor {
+      background: #ede9fe;
+      color: #6b21a8;
+      border: 1px solid var(--editor-color);
+    }
+
+    .user-badge.viewer {
+      background: #dbeafe;
+      color: #1e40af;
+      border: 1px solid var(--viewer-color);
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--gray-700);
+      font-size: 14px;
+    }
+
+    /* REPORT DETAIL */
+    .report-detail {
+      display: none;
+    }
+
+    .report-detail.active {
+      display: block;
+    }
+
+    .detail-header {
+      background: white;
+      border-radius: var(--border-radius);
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .back-button {
+      background: var(--gray-100);
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--gray-700);
+      margin-bottom: 16px;
+      transition: background 0.2s;
+    }
+
+    .back-button:hover {
+      background: var(--gray-200);
+    }
+
+    .detail-title {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--gray-900);
+      margin-bottom: 8px;
+    }
+
+    .detail-meta {
+      font-size: 14px;
+      color: var(--gray-700);
+    }
+
+    /* TABS */
+    .tabs-container {
+      background: white;
+      border-radius: var(--border-radius);
+      box-shadow: var(--shadow-sm);
+      overflow: hidden;
+    }
+
+    .tabs-header {
+      display: flex;
+      border-bottom: 2px solid var(--gray-200);
+      background: var(--gray-50);
+    }
+
+    .tab-button {
+      flex: 1;
+      padding: 16px 20px;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--gray-700);
+      position: relative;
+      transition: all 0.2s;
+    }
+
+    .tab-button:hover {
+      background: white;
+    }
+
+    .tab-button.active {
+      color: var(--primary-color);
+      background: white;
+    }
+
+    .tab-button.active::after {
+      content: '';
+      position: absolute;
+      bottom: -2px;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: var(--primary-color);
+    }
+
+    .tab-users-count {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 20px;
+      height: 20px;
+      padding: 0 6px;
+      margin-left: 8px;
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 600;
+      background: var(--gray-200);
+      color: var(--gray-700);
+    }
+
+    .tab-button.active .tab-users-count {
+      background: var(--primary-color);
+      color: white;
+    }
+
+    .tab-content {
+      display: none;
+      padding: 24px;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    .tab-panel {
+      display: grid;
+      grid-template-columns: 1fr 300px;
+      gap: 24px;
+    }
+
+    .tab-main {
+      background: var(--gray-50);
+      border: 1px dashed var(--gray-300);
+      border-radius: var(--border-radius);
+      padding: 40px;
+      text-align: center;
+      color: var(--gray-700);
+      min-height: 400px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .tab-main h3 {
+      font-size: 18px;
+      margin-bottom: 8px;
+    }
+
+    .tab-main p {
+      font-size: 14px;
+      color: var(--gray-700);
+    }
+
+    .tab-sidebar {
+      background: var(--gray-50);
+      border-radius: var(--border-radius);
+      padding: 20px;
+    }
+
+    .sidebar-section {
+      margin-bottom: 24px;
+    }
+
+    .sidebar-section:last-child {
+      margin-bottom: 0;
+    }
+
+    .sidebar-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--gray-900);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .mode-selector {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .mode-button {
+      flex: 1;
+      padding: 8px;
+      border: 2px solid var(--gray-300);
+      background: white;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+
+    .mode-button:hover {
+      border-color: var(--primary-color);
+    }
+
+    .mode-button.active {
+      border-color: var(--primary-color);
+      background: var(--primary-color);
+      color: white;
+    }
+
+    .active-users-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .active-user {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px;
+      background: white;
+      border-radius: 6px;
+      border: 1px solid var(--gray-200);
+    }
+
+    .active-user.editor {
+      border-color: var(--editor-color);
+      background: #faf5ff;
+    }
+
+    .active-user.viewer {
+      border-color: var(--viewer-color);
+      background: #eff6ff;
+    }
+
+    .active-user.me {
+      border-width: 2px;
+      font-weight: 600;
+    }
+
+    .active-user-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--gray-300);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 600;
+      color: white;
+    }
+
+    .active-user.editor .active-user-avatar {
+      background: var(--editor-color);
+    }
+
+    .active-user.viewer .active-user-avatar {
+      background: var(--viewer-color);
+    }
+
+    .active-user-info {
+      flex: 1;
+    }
+
+    .active-user-name {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--gray-900);
+    }
+
+    .active-user-mode {
+      font-size: 11px;
+      color: var(--gray-700);
+    }
+
+    @media (max-width: 768px) {
+      .tab-panel {
+        grid-template-columns: 1fr;
+      }
+
+      .reports-list {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* UTILITIES */
+    .hidden {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <!-- HEADER -->
+    <div class="app-header">
+      <div>
+        <div class="app-title">CollaborNest</div>
+        <div class="app-subtitle">Surgical Reports - Real-Time Collaboration</div>
+      </div>
+      <div class="user-info">
+        <div class="user-avatar" id="userAvatar">DR</div>
+        <div>
+          <div style="font-size: 14px; font-weight: 600;" id="userName">Dr. Rossi</div>
+          <div class="connection-status disconnected" id="connectionStatus">
+            <span class="status-indicator"></span>
+            <span>Disconnected</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- REPORTS LIST VIEW -->
+    <div id="reportsListView">
+      <h2 style="margin-bottom: 20px; color: var(--gray-900);">Medical Reports</h2>
+      <div class="reports-list" id="reportsList"></div>
+    </div>
+
+    <!-- REPORT DETAIL VIEW -->
+    <div id="reportDetailView" class="report-detail">
+      <div class="detail-header">
+        <button class="back-button" onclick="app.showReportsList()">← Back to Reports</button>
+        <div class="detail-title" id="detailTitle"></div>
+        <div class="detail-meta" id="detailMeta"></div>
+      </div>
+
+      <div class="tabs-container">
+        <div class="tabs-header" id="tabsHeader"></div>
+        <div id="tabsContent"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // MOCK DATA - Medical Reports
+    const MOCK_REPORTS = [
+      {
+        id: 'MR-2024-001',
+        patientName: 'Mario Bianchi',
+        procedure: 'Appendicectomia',
+        date: '16/11/2024',
+        tabs: [
+          { id: 'surgical-notes', name: 'Note Chirurgiche', icon: '📝' },
+          { id: 'patient-data', name: 'Dati Paziente', icon: '📋' },
+          { id: 'procedure-steps', name: 'Steps Procedura', icon: '📄' }
+        ]
+      },
+      {
+        id: 'MR-2024-002',
+        patientName: 'Laura Verdi',
+        procedure: 'Colecistectomia',
+        date: '15/11/2024',
+        tabs: [
+          { id: 'surgical-notes', name: 'Note Chirurgiche', icon: '📝' },
+          { id: 'patient-data', name: 'Dati Paziente', icon: '📋' },
+          { id: 'procedure-steps', name: 'Steps Procedura', icon: '📄' }
+        ]
+      },
+      {
+        id: 'MR-2024-003',
+        patientName: 'Giuseppe Neri',
+        procedure: 'Ernia Inguinale',
+        date: '15/11/2024',
+        tabs: [
+          { id: 'surgical-notes', name: 'Note Chirurgiche', icon: '📝' },
+          { id: 'patient-data', name: 'Dati Paziente', icon: '📋' },
+          { id: 'procedure-steps', name: 'Steps Procedura', icon: '📄' }
+        ]
+      },
+      {
+        id: 'MR-2024-004',
+        patientName: 'Anna Russo',
+        procedure: 'Tiroidectomia',
+        date: '14/11/2024',
+        tabs: [
+          { id: 'surgical-notes', name: 'Note Chirurgiche', icon: '📝' },
+          { id: 'patient-data', name: 'Dati Paziente', icon: '📋' },
+          { id: 'procedure-steps', name: 'Steps Procedura', icon: '📄' }
+        ]
+      },
+      {
+        id: 'MR-2024-005',
+        patientName: 'Marco Ferrari',
+        procedure: 'Gastrectomia',
+        date: '14/11/2024',
+        tabs: [
+          { id: 'surgical-notes', name: 'Note Chirurgiche', icon: '📝' },
+          { id: 'patient-data', name: 'Dati Paziente', icon: '📋' },
+          { id: 'procedure-steps', name: 'Steps Procedura', icon: '📄' }
+        ]
+      }
+    ];
+
+    // JWT Generator (working version from test-single-page.html)
+    const JWT_SECRET = 'your_super_secure_jwt_secret_32_characters_minimum';
+    const JWT_ISSUER = 'collabornest';
+    const JWT_AUDIENCE = 'collabornest-users';
+
+    function base64UrlEncode(str) {
+      return btoa(str)
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=/g, '');
+    }
+
+    async function hmacSha256(key, data) {
+      // Check if crypto.subtle is available
+      if (!window.crypto || !window.crypto.subtle) {
+        const errorMsg = `
+          ❌ crypto.subtle not available!
+          
+          This page requires a secure context (HTTPS or file://).
+          
+          Solutions:
+          1. Open file directly: file:///path/to/embedded-reports-view.html
+          2. Use Chrome with flag: chrome --allow-file-access-from-files
+          3. Access via HTTPS or localhost (should work on modern browsers)
+          
+          Current protocol: ${window.location.protocol}
+        `;
+        console.error(errorMsg);
+        alert(errorMsg);
+        throw new Error('crypto.subtle not available - secure context required');
+      }
+
+      const encoder = new TextEncoder();
+      const keyData = encoder.encode(key);
+      const cryptoKey = await crypto.subtle.importKey(
+        'raw',
+        keyData,
+        { name: 'HMAC', hash: 'SHA-256' },
+        false,
+        ['sign']
+      );
+      const signature = await crypto.subtle.sign('HMAC', cryptoKey, encoder.encode(data));
+      return new Uint8Array(signature);
+    }
+
+    function arrayBufferToBase64Url(buffer) {
+      const bytes = new Uint8Array(buffer);
+      let binary = '';
+      for (let i = 0; i < bytes.length; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      return base64UrlEncode(binary);
+    }
+
+    async function generateJWT(userId, username, email) {
+      const header = {
+        alg: 'HS256',
+        typ: 'JWT'
+      };
+
+      const now = Math.floor(Date.now() / 1000);
+      const payload = {
+        sub: userId,
+        username: username,
+        email: email,
+        iss: JWT_ISSUER,
+        aud: JWT_AUDIENCE,
+        iat: now,
+        exp: now + 3600
+      };
+
+      const headerEncoded = base64UrlEncode(JSON.stringify(header));
+      const payloadEncoded = base64UrlEncode(JSON.stringify(payload));
+      const dataToSign = `${headerEncoded}.${payloadEncoded}`;
+
+      const signature = await hmacSha256(JWT_SECRET, dataToSign);
+      const signatureEncoded = arrayBufferToBase64Url(signature);
+
+      return `${dataToSign}.${signatureEncoded}`;
+    }
+
+    // WebSocket Service
+    class WebSocketService {
+      constructor() {
+        this.socket = null;
+        this.currentUser = null;
+        this.currentResourceId = null;
+        this.currentMode = 'viewer';
+        this.activeUsers = [];
+        this.onConnectionChange = null;
+        this.onUsersChange = null;
+      }
+
+      async connect(userId, username, email) {
+        console.log('[WS] 🔌 Connecting...', { userId, username, email });
+        const jwt = await generateJWT(userId, username, email);
+        console.log('[WS] 🔑 JWT generated:', jwt.substring(0, 50) + '...');
+        this.currentUser = { userId, username, email };
+
+        this.socket = io('http://localhost:3000/collaboration', {
+          path: '/ws/socket.io',
+          transports: ['websocket', 'polling'],
+          auth: { token: jwt },
+          reconnection: true,
+          reconnectionDelay: 1000,
+          reconnectionAttempts: 5
+        });
+
+        console.log('[WS] 📡 Socket.IO client initialized');
+        this.setupListeners();
+      }
+
+      setupListeners() {
+        console.log('[WS] 👂 Setting up event listeners...');
+
+        this.socket.on('connect', () => {
+          console.log('[WS] ✅ Connected! Socket ID:', this.socket.id);
+          if (this.onConnectionChange) {
+            this.onConnectionChange(true);
+          }
+        });
+
+        this.socket.on('connect_error', (error) => {
+          console.error('[WS] ❌ Connection error:', error.message, error);
+          if (this.onConnectionChange) {
+            this.onConnectionChange(false);
+          }
+        });
+
+        this.socket.on('disconnect', (reason) => {
+          console.log('[WS] 🔌 Disconnected. Reason:', reason);
+          if (this.onConnectionChange) {
+            this.onConnectionChange(false);
+          }
+        });
+
+        this.socket.on('resource:joined', (data) => {
+          console.log('[WS] 📥 resource:joined event received:', data);
+          if (data.success) {
+            console.log('[WS] ✅ Successfully joined resource:', data.resourceId);
+            console.log('[WS] 👥 Users in resource:', data.users);
+            this.activeUsers = data.users || [];
+            if (this.onUsersChange) {
+              console.log('[WS] 🔄 Calling onUsersChange with', this.activeUsers.length, 'users');
+              this.onUsersChange(this.activeUsers);
+            }
+          } else {
+            console.warn('[WS] ⚠️ Failed to join resource:', data.message);
+          }
+        });
+
+        this.socket.on('resource:left', (data) => {
+          console.log('[WS] 📥 resource:left event received:', data);
+        });
+
+        this.socket.on('user:joined', (data) => {
+          console.log('[WS] 📥 user:joined event received:', data);
+          const existingIndex = this.activeUsers.findIndex(u => u.userId === data.userId);
+          if (existingIndex === -1) {
+            console.log('[WS] ➕ Adding new user to activeUsers:', data.username);
+            this.activeUsers.push({
+              userId: data.userId,
+              username: data.username,
+              email: data.email,
+              socketId: data.socketId,
+              mode: data.mode,
+              joinedAt: data.joinedAt
+            });
+            if (this.onUsersChange) {
+              console.log('[WS] 🔄 Calling onUsersChange with', this.activeUsers.length, 'users');
+              this.onUsersChange(this.activeUsers);
+            }
+          } else {
+            console.log('[WS] ℹ️ User already in activeUsers, skipping:', data.username);
+          }
+        });
+
+        this.socket.on('user:left', (data) => {
+          console.log('[WS] 📥 user:left event received:', data);
+          const beforeCount = this.activeUsers.length;
+          this.activeUsers = this.activeUsers.filter(u => u.userId !== data.userId);
+          const afterCount = this.activeUsers.length;
+          console.log('[WS] ➖ Removed user. Before:', beforeCount, 'After:', afterCount);
+          if (this.onUsersChange) {
+            console.log('[WS] 🔄 Calling onUsersChange with', this.activeUsers.length, 'users');
+            this.onUsersChange(this.activeUsers);
+          }
+        });
+
+        console.log('[WS] ✅ All event listeners set up');
+      }
+
+      joinResource(resourceId, mode) {
+        console.log('[WS] 📤 joinResource called:', { resourceId, mode });
+        if (this.currentResourceId) {
+          console.log('[WS] 🔄 Already in resource, leaving first:', this.currentResourceId);
+          this.leaveResource();
+        }
+
+        this.currentResourceId = resourceId;
+        this.currentMode = mode;
+        console.log('[WS] 📤 Emitting resource:join event:', { resourceId, mode });
+        this.socket.emit('resource:join', { resourceId, mode });
+      }
+
+      leaveResource() {
+        if (this.currentResourceId) {
+          console.log('[WS] 📤 Emitting resource:leave event:', this.currentResourceId);
+          this.socket.emit('resource:leave', { resourceId: this.currentResourceId });
+          this.currentResourceId = null;
+          this.activeUsers = [];
+          if (this.onUsersChange) {
+            console.log('[WS] 🔄 Clearing users (leave resource)');
+            this.onUsersChange([]);
+          }
+        } else {
+          console.log('[WS] ℹ️ leaveResource called but no current resource');
+        }
+      }
+
+      changeMode(mode) {
+        console.log('[WS] 🔄 changeMode called:', { currentMode: this.currentMode, newMode: mode });
+        if (this.currentResourceId && this.currentMode !== mode) {
+          this.currentMode = mode;
+          console.log('[WS] 🔄 Mode changed, rejoining resource with new mode');
+          this.joinResource(this.currentResourceId, mode);
+        } else {
+          console.log('[WS] ℹ️ Mode not changed (same or no resource)');
+        }
+      }
+
+      disconnect() {
+        if (this.socket) {
+          this.leaveResource();
+          this.socket.disconnect();
+        }
+      }
+    }
+
+    // Application State
+    class ReportsApp {
+      constructor() {
+        this.wsService = new WebSocketService();
+        this.currentReport = null;
+        this.currentTab = null;
+        this.userPresenceByResource = {};
+
+        this.wsService.onConnectionChange = (connected) => {
+          this.updateConnectionStatus(connected);
+        };
+
+        this.wsService.onUsersChange = (users) => {
+          this.updateActiveUsers(users);
+        };
+
+        this.init();
+      }
+
+      async init() {
+        console.log('[APP] 🚀 Initializing app...');
+        const userId = 'user_' + Math.random().toString(36).substr(2, 9);
+        const username = 'user_' + Math.random().toString(36).substr(2, 5);
+        const email = `${username}@example.com`;
+
+        console.log('[APP] 👤 Generated user:', { userId, username, email });
+
+        document.getElementById('userName').textContent = username;
+        document.getElementById('userAvatar').textContent = username.substring(0, 2).toUpperCase();
+
+        await this.wsService.connect(userId, username, email);
+        this.renderReportsList();
+        console.log('[APP] ✅ App initialized');
+      }
+
+      updateConnectionStatus(connected) {
+        console.log('[APP] 🔄 Connection status changed:', connected);
+        const statusEl = document.getElementById('connectionStatus');
+        if (connected) {
+          statusEl.className = 'connection-status connected';
+          statusEl.innerHTML = '<span class="status-indicator"></span><span>Connected</span>';
+        } else {
+          statusEl.className = 'connection-status disconnected';
+          statusEl.innerHTML = '<span class="status-indicator"></span><span>Disconnected</span>';
+        }
+      }
+
+      renderReportsList() {
+        const listEl = document.getElementById('reportsList');
+        listEl.innerHTML = MOCK_REPORTS.map(report => {
+          const users = this.getUsersForReport(report.id);
+          const hasEditors = users.some(u => u.mode === 'editor');
+          const hasViewers = users.some(u => u.mode === 'viewer');
+          const hasConflict = users.filter(u => u.mode === 'editor').length > 1;
+
+          let cardClass = 'report-card';
+          if (hasConflict) cardClass += ' has-conflict';
+          else if (hasEditors) cardClass += ' has-editors';
+          else if (hasViewers) cardClass += ' has-viewers';
+
+          const usersHtml = users.length > 0 ? `
+            <div class="report-users">
+              ${users.map(u => `
+                <span class="user-badge ${u.mode}">
+                  ${u.mode === 'editor' ? '✏️' : '👁️'} ${u.username}
+                </span>
+              `).join('')}
+            </div>
+          ` : '<div class="empty-state">No active users</div>';
+
+          return `
+            <div class="${cardClass}" onclick="app.showReportDetail('${report.id}')">
+              <div class="report-header">
+                <span class="report-id">${report.id}</span>
+              </div>
+              <div class="report-title">${report.patientName}</div>
+              <div class="report-meta">
+                <div>📋 ${report.procedure}</div>
+                <div>📅 ${report.date}</div>
+              </div>
+              ${usersHtml}
+            </div>
+          `;
+        }).join('');
+      }
+
+      getUsersForReport(reportId) {
+        const report = MOCK_REPORTS.find(r => r.id === reportId);
+        if (!report) return [];
+
+        const allUsers = new Map();
+        report.tabs.forEach(tab => {
+          const resourceId = `${reportId}/${tab.id}`;
+          const users = this.userPresenceByResource[resourceId] || [];
+          users.forEach(user => {
+            if (!allUsers.has(user.userId)) {
+              allUsers.set(user.userId, user);
+            }
+          });
+        });
+
+        return Array.from(allUsers.values());
+      }
+
+      showReportDetail(reportId) {
+        console.log('[APP] 📄 showReportDetail called:', reportId);
+        this.currentReport = MOCK_REPORTS.find(r => r.id === reportId);
+        if (!this.currentReport) {
+          console.error('[APP] ❌ Report not found:', reportId);
+          return;
+        }
+
+        console.log('[APP] 📄 Report found:', this.currentReport);
+
+        document.getElementById('reportsListView').classList.add('hidden');
+        document.getElementById('reportDetailView').classList.add('active');
+
+        document.getElementById('detailTitle').textContent = `${this.currentReport.patientName} - ${this.currentReport.procedure}`;
+        document.getElementById('detailMeta').innerHTML = `
+          <strong>${this.currentReport.id}</strong> | 📅 ${this.currentReport.date}
+        `;
+
+        this.renderTabs();
+        this.showTab(this.currentReport.tabs[0].id);
+      }
+
+      renderTabs() {
+        const headerEl = document.getElementById('tabsHeader');
+        const contentEl = document.getElementById('tabsContent');
+
+        headerEl.innerHTML = this.currentReport.tabs.map(tab => {
+          const resourceId = `${this.currentReport.id}/${tab.id}`;
+          const users = this.userPresenceByResource[resourceId] || [];
+          return `
+            <button class="tab-button" data-tab="${tab.id}" onclick="app.showTab('${tab.id}')">
+              ${tab.icon} ${tab.name}
+              ${users.length > 0 ? `<span class="tab-users-count">${users.length}</span>` : ''}
+            </button>
+          `;
+        }).join('');
+
+        contentEl.innerHTML = this.currentReport.tabs.map(tab => `
+          <div class="tab-content" data-tab="${tab.id}">
+            <div class="tab-panel">
+              <div class="tab-main">
+                <h3>${tab.icon} ${tab.name}</h3>
+                <p>Content placeholder for ${tab.name}</p>
+                <p style="margin-top: 16px; font-size: 13px; color: var(--gray-700);">
+                  In production, this would show the actual report section content.
+                </p>
+              </div>
+              <div class="tab-sidebar">
+                <div class="sidebar-section">
+                  <div class="sidebar-title">👤 Your Mode</div>
+                  <div class="mode-selector">
+                    <button class="mode-button" data-mode="viewer" onclick="app.changeMode('${tab.id}', 'viewer')">
+                      👁️ Viewer
+                    </button>
+                    <button class="mode-button" data-mode="editor" onclick="app.changeMode('${tab.id}', 'editor')">
+                      ✏️ Editor
+                    </button>
+                  </div>
+                </div>
+                <div class="sidebar-section">
+                  <div class="sidebar-title">
+                    👥 Active Users
+                    <span id="activeUsersCount-${tab.id}" style="color: var(--gray-700); font-weight: 400;">(0)</span>
+                  </div>
+                  <div class="active-users-list" id="activeUsers-${tab.id}">
+                    <div class="empty-state">No users yet</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      showTab(tabId) {
+        console.log('[APP] 📑 showTab called:', tabId, 'currentTab:', this.currentTab);
+        if (this.currentTab === tabId) {
+          console.log('[APP] ℹ️ Already on this tab, skipping');
+          return;
+        }
+
+        document.querySelectorAll('.tab-button').forEach(btn => {
+          btn.classList.toggle('active', btn.dataset.tab === tabId);
+        });
+
+        document.querySelectorAll('.tab-content').forEach(content => {
+          content.classList.toggle('active', content.dataset.tab === tabId);
+        });
+
+        const resourceId = `${this.currentReport.id}/${tabId}`;
+        const mode = this.wsService.currentMode || 'viewer';
+        console.log('[APP] 📑 Joining tab resource:', resourceId, 'mode:', mode);
+        this.wsService.joinResource(resourceId, mode);
+        this.currentTab = tabId;
+
+        this.updateModeButtons(tabId);
+      }
+
+      changeMode(tabId, mode) {
+        console.log('[APP] 🔄 changeMode called from UI:', { tabId, mode });
+        this.wsService.changeMode(mode);
+        this.updateModeButtons(tabId);
+      }
+
+      updateModeButtons(tabId) {
+        console.log('[APP] 🔘 Updating mode buttons for tab:', tabId, 'currentMode:', this.wsService.currentMode);
+        const tabContent = document.querySelector(`.tab-content[data-tab="${tabId}"]`);
+        if (!tabContent) {
+          console.warn('[APP] ⚠️ Tab content not found for:', tabId);
+          return;
+        }
+
+        tabContent.querySelectorAll('.mode-button').forEach(btn => {
+          btn.classList.toggle('active', btn.dataset.mode === this.wsService.currentMode);
+        });
+      }
+
+      updateActiveUsers(users) {
+        console.log('[APP] 👥 updateActiveUsers called:', users.length, 'users, currentTab:', this.currentTab);
+        if (!this.currentTab) {
+          console.warn('[APP] ⚠️ No current tab, cannot update users');
+          return;
+        }
+
+        const resourceId = `${this.currentReport.id}/${this.currentTab}`;
+        console.log('[APP] 💾 Storing users for resource:', resourceId);
+        this.userPresenceByResource[resourceId] = users;
+
+        const listEl = document.getElementById(`activeUsers-${this.currentTab}`);
+        const countEl = document.getElementById(`activeUsersCount-${this.currentTab}`);
+
+        if (users.length === 0) {
+          console.log('[APP] 🚫 No users, showing empty state');
+          listEl.innerHTML = '<div class="empty-state">No users yet</div>';
+          countEl.textContent = '(0)';
+        } else {
+          console.log('[APP] ✅ Rendering', users.length, 'users in sidebar');
+          listEl.innerHTML = users.map(user => {
+            const isMe = user.userId === this.wsService.currentUser.userId;
+            console.log('[APP] 👤 Rendering user:', user.username, 'isMe:', isMe, 'mode:', user.mode);
+            return `
+              <div class="active-user ${user.mode} ${isMe ? 'me' : ''}">
+                <div class="active-user-avatar">${user.username.substring(0, 2).toUpperCase()}</div>
+                <div class="active-user-info">
+                  <div class="active-user-name">${user.username}${isMe ? ' (You)' : ''}</div>
+                  <div class="active-user-mode">${user.mode === 'editor' ? '✏️ Editor' : '👁️ Viewer'}</div>
+                </div>
+              </div>
+            `;
+          }).join('');
+          countEl.textContent = `(${users.length})`;
+        }
+
+        console.log('[APP] 🔄 Re-rendering reports list to update badges');
+        this.renderReportsList();
+
+        console.log('[APP] 🔄 Updating tab badges');
+        document.querySelectorAll('.tab-button').forEach(btn => {
+          const tabId = btn.dataset.tab;
+          const tabResourceId = `${this.currentReport.id}/${tabId}`;
+          const tabUsers = this.userPresenceByResource[tabResourceId] || [];
+          const badge = btn.querySelector('.tab-users-count');
+          console.log('[APP] 📊 Tab:', tabId, 'Users:', tabUsers.length);
+          if (tabUsers.length > 0) {
+            if (!badge) {
+              btn.innerHTML += `<span class="tab-users-count">${tabUsers.length}</span>`;
+            } else {
+              badge.textContent = tabUsers.length;
+            }
+          } else if (badge) {
+            badge.remove();
+          }
+        });
+        console.log('[APP] ✅ updateActiveUsers complete');
+      }
+
+      showReportsList() {
+        console.log('[APP] 🔙 showReportsList called');
+        this.wsService.leaveResource();
+        this.currentReport = null;
+        this.currentTab = null;
+
+        document.getElementById('reportDetailView').classList.remove('active');
+        document.getElementById('reportsListView').classList.remove('hidden');
+
+        this.renderReportsList();
+      }
+    }
+
+    const app = new ReportsApp();
+
+    window.addEventListener('beforeunload', () => {
+      app.wsService.disconnect();
+    });
+  </script>
+</body>
+</html>
