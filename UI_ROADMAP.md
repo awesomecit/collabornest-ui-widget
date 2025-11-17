@@ -31,10 +31,12 @@
 
 ## 🚧 Phase 2: Lock Awareness & Warnings (NEXT - Week 3)
 
-**Depends on**: BE-001.3 (Distributed Locks) - Backend Team  
-**Estimated**: 2-3 days (after backend ready)
+**Depends on**: BE-001.3 (Distributed Locks) - Delivery: Nov 25, 2025  
+**Estimated**: 2-3 days (after backend ready)  
+**Story Points**: 21 (6 stories)  
+**Details**: See `docs/project/UI-001.3-LOCK-UI-TASKS.md` and `docs/project/BE-001.3-LOCK-DECISIONS.md`
 
-### 2.1 Multi-Editor Warning (UI-Only) ⚡ Priority 1
+### 2.1 Multi-Editor Warning (UI-Only) ⚡ Priority 1 (STORY-1)
 
 **Can start now** (no backend dependency)
 
@@ -60,9 +62,10 @@ if (editors.length > 1) {
 
 ---
 
-### 2.2 Lock Status Indicator (Requires BE-001.3) 🔒
+### 2.2 Lock Status Indicator (Requires BE-001.3) 🔒 (STORY-2)
 
-**Blocked by**: Backend lock events (`lock:acquired`, `lock:denied`, `lock:released`)
+**Blocked by**: Backend lock events (`lock_acquired`, `lock_denied`, `lock_released`)  
+**Points**: 5 | **Sprint**: Week 3
 
 **Features**:
 - 🔒 Lock icon next to resource ID when locked
@@ -101,9 +104,14 @@ socket.on('lock:expired', (data) => {
 
 ---
 
-### 2.3 Request Lock Button (Requires BE-001.3) 🔄
+### 2.3 Heartbeat & Toast (STORY-3, STORY-5)
+
+**Points**: 5 | **Sprint**: Week 3 | **Blocked**: BE-001.3
 
 **Features**:
+
+- 🔄 60s heartbeat to renew lock TTL
+- 🍞 Toast notifications on lock denied/released/expired
 - 🔘 "Request Lock" button visible when resource locked by someone else
 - 📬 Send `lock:acquire` event to backend
 - ✅ Auto-switch to editor mode when lock acquired
