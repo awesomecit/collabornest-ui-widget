@@ -708,6 +708,8 @@
         this.activeUsers = [];
         this.onConnectionChange = null;
         this.onUsersChange = null;
+        this.onCrossTabUserJoined = null; // Cross-tab presence update
+        this.onCrossTabUserLeft = null;   // Cross-tab presence update
       }
 
       async connect(userId, username, email) {

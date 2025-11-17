@@ -907,12 +907,18 @@
           console.log('[WS] 🔍 Current resource:', this.currentResourceId);
           console.log('[WS] 🔍 Event resourceId:', data.resourceId);
           console.log('[WS] 🔍 Is same resource?', data.resourceId === this.currentResourceId);
+          console.log('[WS] 🔍 Event userId:', data.userId);
+          console.log('[WS] 🔍 My userId:', this.currentUser?.userId);
+          console.log('[WS] 🔍 Is me?', data.userId === this.currentUser?.userId);
           
           this.addEvent('USER_JOINED', `👤 ${data.username} joined ${data.resourceId} as ${data.mode}`, data);
           
           // Update for current resource (active users panel)
           if (data.resourceId === this.currentResourceId) {
+            console.log('[WS] ✅ Same resource - updating active users panel');
             const existingIndex = this.activeUsers.findIndex(u => u.userId === data.userId);
+            console.log('[WS] 🔍 Existing index:', existingIndex);
+            
             if (existingIndex === -1) {
               this.activeUsers.push({
                 userId: data.userId,
@@ -931,12 +937,17 @@
             } else {
               console.log('[WS] ℹ️ User already in list, skipping');
             }
+          } else {
+            console.log('[WS] ℹ️ Different resource - skipping active users panel update');
           }
           
           // CROSS-TAB UPDATE: Notify app about user in OTHER tabs
+          console.log('[WS] 🔔 Checking if cross-tab callback exists:', !!this.onCrossTabUserJoined);
           if (this.onCrossTabUserJoined) {
-            console.log('[WS] 🔄 Triggering cross-tab update for resource:', data.resourceId);
+            console.log('[WS] � Triggering cross-tab update for resource:', data.resourceId);
             this.onCrossTabUserJoined(data);
+          } else {
+            console.log('[WS] ⚠️ onCrossTabUserJoined callback not set!');
           }
         });
 
@@ -945,11 +956,15 @@
           console.log('[WS] 🔍 Current resource:', this.currentResourceId);
           console.log('[WS] 🔍 Event resourceId:', data.resourceId);
           console.log('[WS] 🔍 Is same resource?', data.resourceId === this.currentResourceId);
+          console.log('[WS] 🔍 Event userId:', data.userId);
+          console.log('[WS] 🔍 My userId:', this.currentUser?.userId);
+          console.log('[WS] 🔍 Is me?', data.userId === this.currentUser?.userId);
           
           this.addEvent('USER_LEFT', `👋 ${data.username} left ${data.resourceId}`, data);
           
           // Update for current resource (active users panel)
           if (data.resourceId === this.currentResourceId) {
+            console.log('[WS] ✅ Same resource - updating active users panel');
             const beforeCount = this.activeUsers.length;
             this.activeUsers = this.activeUsers.filter(u => u.userId !== data.userId);
             const afterCount = this.activeUsers.length;
@@ -961,12 +976,17 @@
             if (this.onUsersChange) {
               this.onUsersChange(this.activeUsers);
             }
+          } else {
+            console.log('[WS] ℹ️ Different resource - skipping active users panel update');
           }
           
           // CROSS-TAB UPDATE: Notify app about user leaving OTHER tabs
+          console.log('[WS] 🔔 Checking if cross-tab callback exists:', !!this.onCrossTabUserLeft);
           if (this.onCrossTabUserLeft) {
-            console.log('[WS] 🔄 Triggering cross-tab update for resource:', data.resourceId);
+            console.log('[WS] � Triggering cross-tab update for resource:', data.resourceId);
             this.onCrossTabUserLeft(data);
+          } else {
+            console.log('[WS] ⚠️ onCrossTabUserLeft callback not set!');
           }
         });
       }
@@ -1331,25 +1351,41 @@
 
       handleCrossTabUserJoined(data) {
         console.log('[APP] 🔔 Cross-tab user joined:', data.username, '→', data.resourceId);
+        console.log('[APP] 🔍 Current report:', this.currentReport?.id);
+        console.log('[APP] 🔍 Current tab:', this.currentTab);
+        console.log('[APP] 🔍 Current resource:', `${this.currentReport?.id}/${this.currentTab}`);
+        console.log('[APP] 🔍 Event resource:', data.resourceId);
+        console.log('[APP] 🔍 My userId:', this.wsService.currentUser?.userId);
+        console.log('[APP] 🔍 Event userId:', data.userId);
         
         // Check if this resource belongs to current report
         if (!this.currentReport) {
-          console.log('[APP] ℹ️ No current report, ignoring cross-tab event');
+          console.log('[APP] ❌ No current report, ignoring cross-tab event');
           return;
         }
 
         const resourceReportId = data.resourceId.split('/')[0];
+        console.log('[APP] 🔍 Extracted report ID from event:', resourceReportId);
+        
         if (resourceReportId !== this.currentReport.id) {
-          console.log('[APP] ℹ️ Event for different report, ignoring');
+          console.log('[APP] ❌ Event for different report, ignoring. Expected:', this.currentReport.id, 'Got:', resourceReportId);
           return;
         }
 
+        console.log('[APP] ✅ Event belongs to current report, processing...');
+
         // Update userPresenceByResource for the target tab
         if (!this.userPresenceByResource[data.resourceId]) {
+          console.log('[APP] 🆕 Creating new entry for resource:', data.resourceId);
           this.userPresenceByResource[data.resourceId] = [];
         }
 
+        console.log('[APP] 📋 Current users in', data.resourceId, ':', 
+          this.userPresenceByResource[data.resourceId].map(u => u.username).join(', ') || '(empty)');
+
         const existingIndex = this.userPresenceByResource[data.resourceId].findIndex(u => u.userId === data.userId);
+        console.log('[APP] 🔍 Existing user index:', existingIndex);
+        
         if (existingIndex === -1) {
           this.userPresenceByResource[data.resourceId].push({
             userId: data.userId,
@@ -1360,71 +1396,130 @@
             joinedAt: data.joinedAt
           });
           console.log('[APP] ➕ Added user to resource:', data.resourceId);
+          console.log('[APP] 📋 Updated users in', data.resourceId, ':', 
+            this.userPresenceByResource[data.resourceId].map(u => u.username).join(', '));
+        } else {
+          console.log('[APP] ℹ️ User already exists in resource, skipping');
         }
 
+        console.log('[APP] 📊 Full userPresenceByResource state:', JSON.stringify(this.userPresenceByResource, null, 2));
+
         // Re-render badges and report cards
+        console.log('[APP] 🔄 Calling updateAllTabBadges()...');
         this.updateAllTabBadges();
+        console.log('[APP] 🔄 Calling renderReportsList()...');
         this.renderReportsList();
+        console.log('[APP] ✅ Cross-tab user joined handling complete');
       }
 
       handleCrossTabUserLeft(data) {
         console.log('[APP] 🔔 Cross-tab user left:', data.username, '←', data.resourceId);
+        console.log('[APP] 🔍 Current report:', this.currentReport?.id);
+        console.log('[APP] 🔍 Current tab:', this.currentTab);
+        console.log('[APP] 🔍 Current resource:', `${this.currentReport?.id}/${this.currentTab}`);
+        console.log('[APP] 🔍 Event resource:', data.resourceId);
+        console.log('[APP] 🔍 My userId:', this.wsService.currentUser?.userId);
+        console.log('[APP] 🔍 Event userId:', data.userId);
         
         // Check if this resource belongs to current report
         if (!this.currentReport) {
-          console.log('[APP] ℹ️ No current report, ignoring cross-tab event');
+          console.log('[APP] ❌ No current report, ignoring cross-tab event');
           return;
         }
 
         const resourceReportId = data.resourceId.split('/')[0];
+        console.log('[APP] 🔍 Extracted report ID from event:', resourceReportId);
+        
         if (resourceReportId !== this.currentReport.id) {
-          console.log('[APP] ℹ️ Event for different report, ignoring');
+          console.log('[APP] ❌ Event for different report, ignoring. Expected:', this.currentReport.id, 'Got:', resourceReportId);
           return;
         }
 
+        console.log('[APP] ✅ Event belongs to current report, processing...');
+
+        console.log('[APP] 📋 Current users in', data.resourceId, 'BEFORE removal:', 
+          this.userPresenceByResource[data.resourceId]?.map(u => u.username).join(', ') || '(empty)');
+
         // Remove user from userPresenceByResource
         if (this.userPresenceByResource[data.resourceId]) {
+          const beforeCount = this.userPresenceByResource[data.resourceId].length;
           this.userPresenceByResource[data.resourceId] = 
             this.userPresenceByResource[data.resourceId].filter(u => u.userId !== data.userId);
+          const afterCount = this.userPresenceByResource[data.resourceId].length;
+          
           console.log('[APP] ➖ Removed user from resource:', data.resourceId);
+          console.log('[APP] 📊 Before:', beforeCount, '→ After:', afterCount);
+          console.log('[APP] 📋 Remaining users in', data.resourceId, ':', 
+            this.userPresenceByResource[data.resourceId].map(u => u.username).join(', ') || '(empty)');
+        } else {
+          console.log('[APP] ⚠️ Resource not found in userPresenceByResource:', data.resourceId);
         }
 
+        console.log('[APP] 📊 Full userPresenceByResource state:', JSON.stringify(this.userPresenceByResource, null, 2));
+
         // Re-render badges and report cards
+        console.log('[APP] 🔄 Calling updateAllTabBadges()...');
         this.updateAllTabBadges();
+        console.log('[APP] 🔄 Calling renderReportsList()...');
         this.renderReportsList();
+        console.log('[APP] ✅ Cross-tab user left handling complete');
       }
 
       updateAllTabBadges() {
-        if (!this.currentReport) return;
+        if (!this.currentReport) {
+          console.log('[APP] ⚠️ updateAllTabBadges: No current report');
+          return;
+        }
         
-        console.log('[APP] 🏷️ Updating ALL tab badges (cross-tab event)');
+        console.log('[APP] 🏷️ === Updating ALL tab badges (cross-tab event) ===');
+        console.log('[APP] 🏷️ Current report:', this.currentReport.id);
+        console.log('[APP] 🏷️ My userId:', this.wsService.currentUser?.userId);
+        console.log('[APP] 🏷️ Available tabs:', this.currentReport.tabs.map(t => t.id).join(', '));
+        
         document.querySelectorAll('.tab-button').forEach(btn => {
           const tabId = btn.dataset.tab;
           const tabResourceId = `${this.currentReport.id}/${tabId}`;
           const tabUsers = this.userPresenceByResource[tabResourceId] || [];
           const badge = btn.querySelector('.tab-users-count');
           
+          console.log('[APP] 🏷️ ---');
+          console.log('[APP] 🏷️ Processing tab:', tabId);
+          console.log('[APP] 🏷️ Resource ID:', tabResourceId);
+          console.log('[APP] 🏷️ Total users in resource:', tabUsers.length);
+          console.log('[APP] 🏷️ Users:', tabUsers.map(u => `${u.username} (${u.userId})`).join(', ') || '(none)');
+          
           // Count OTHER users (exclude yourself)
           const otherUsers = tabUsers.filter(u => u.userId !== this.wsService.currentUser.userId);
           const otherUsersCount = otherUsers.length;
           
-          console.log('[APP]   - Tab:', tabId, '| Total:', tabUsers.length, '| Others:', otherUsersCount);
+          console.log('[APP] 🏷️ Other users (excluding me):', otherUsers.map(u => u.username).join(', ') || '(none)');
+          console.log('[APP] 🏷️ Other users count:', otherUsersCount);
+          console.log('[APP] 🏷️ Badge element exists:', !!badge);
           
           // Show badge only if there are OTHER users
           if (otherUsersCount > 0) {
             const tooltipText = otherUsers.map(u => `${u.username} (${u.mode})`).join(', ');
+            console.log('[APP] 🏷️ ✅ Showing badge with count:', otherUsersCount);
+            console.log('[APP] 🏷️ Tooltip:', tooltipText);
+            
             if (!badge) {
+              console.log('[APP] 🏷️ Creating new badge element');
               btn.innerHTML += `<span class="tab-users-count" title="${tooltipText}">${otherUsersCount}</span>`;
             } else {
+              console.log('[APP] 🏷️ Updating existing badge element');
               badge.textContent = otherUsersCount;
               badge.title = tooltipText;
             }
           } else {
+            console.log('[APP] 🏷️ ❌ No other users, removing badge');
             if (badge) {
+              console.log('[APP] 🏷️ Badge removed');
               badge.remove();
             }
           }
         });
+        
+        console.log('[APP] 🏷️ === Badge update complete ===');
       }
 
       showReportsList() {
