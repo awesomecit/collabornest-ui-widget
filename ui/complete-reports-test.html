@@ -815,6 +815,8 @@
         this.onConnectionChange = null;
         this.onUsersChange = null;
         this.onEvent = null;
+        this.onCrossTabUserJoined = null; // Cross-tab presence update
+        this.onCrossTabUserLeft = null;   // Cross-tab presence update
         this.pendingJoin = null; // Store pending join request
       }
 
@@ -906,26 +908,35 @@
           console.log('[WS] 🔍 Event resourceId:', data.resourceId);
           console.log('[WS] 🔍 Is same resource?', data.resourceId === this.currentResourceId);
           
-          this.addEvent('USER_JOINED', `👤 ${data.username} joined ${this.currentResourceId} as ${data.mode}`, data);
+          this.addEvent('USER_JOINED', `👤 ${data.username} joined ${data.resourceId} as ${data.mode}`, data);
           
-          const existingIndex = this.activeUsers.findIndex(u => u.userId === data.userId);
-          if (existingIndex === -1) {
-            this.activeUsers.push({
-              userId: data.userId,
-              username: data.username,
-              email: data.email,
-              socketId: data.socketId,
-              mode: data.mode,
-              joinedAt: data.joinedAt
-            });
-            console.log('[WS] ➕ User added to active list. Total:', this.activeUsers.length);
-            console.log('[WS] 📋 Updated active users list:', this.activeUsers.map(u => u.username).join(', '));
-            console.log('[WS] 🔄 Triggering UI update via onUsersChange callback');
-            if (this.onUsersChange) {
-              this.onUsersChange(this.activeUsers);
+          // Update for current resource (active users panel)
+          if (data.resourceId === this.currentResourceId) {
+            const existingIndex = this.activeUsers.findIndex(u => u.userId === data.userId);
+            if (existingIndex === -1) {
+              this.activeUsers.push({
+                userId: data.userId,
+                username: data.username,
+                email: data.email,
+                socketId: data.socketId,
+                mode: data.mode,
+                joinedAt: data.joinedAt
+              });
+              console.log('[WS] ➕ User added to current resource. Total:', this.activeUsers.length);
+              console.log('[WS] 📋 Updated active users list:', this.activeUsers.map(u => u.username).join(', '));
+              console.log('[WS] 🔄 Triggering UI update via onUsersChange callback');
+              if (this.onUsersChange) {
+                this.onUsersChange(this.activeUsers);
+              }
+            } else {
+              console.log('[WS] ℹ️ User already in list, skipping');
             }
-          } else {
-            console.log('[WS] ℹ️ User already in list, skipping');
+          }
+          
+          // CROSS-TAB UPDATE: Notify app about user in OTHER tabs
+          if (this.onCrossTabUserJoined) {
+            console.log('[WS] 🔄 Triggering cross-tab update for resource:', data.resourceId);
+            this.onCrossTabUserJoined(data);
           }
         });
 
@@ -937,16 +948,25 @@
           
           this.addEvent('USER_LEFT', `👋 ${data.username} left ${data.resourceId}`, data);
           
-          const beforeCount = this.activeUsers.length;
-          this.activeUsers = this.activeUsers.filter(u => u.userId !== data.userId);
-          const afterCount = this.activeUsers.length;
+          // Update for current resource (active users panel)
+          if (data.resourceId === this.currentResourceId) {
+            const beforeCount = this.activeUsers.length;
+            this.activeUsers = this.activeUsers.filter(u => u.userId !== data.userId);
+            const afterCount = this.activeUsers.length;
+            
+            console.log('[WS] ➖ User removed from current resource. Before:', beforeCount, 'After:', afterCount);
+            console.log('[WS] 📋 Remaining active users:', this.activeUsers.map(u => u.username).join(', ') || '(none)');
+            console.log('[WS] 🔄 Triggering UI update via onUsersChange callback');
+            
+            if (this.onUsersChange) {
+              this.onUsersChange(this.activeUsers);
+            }
+          }
           
-          console.log('[WS] ➖ User removed from active list. Before:', beforeCount, 'After:', afterCount);
-          console.log('[WS] 📋 Remaining active users:', this.activeUsers.map(u => u.username).join(', ') || '(none)');
-          console.log('[WS] 🔄 Triggering UI update via onUsersChange callback');
-          
-          if (this.onUsersChange) {
-            this.onUsersChange(this.activeUsers);
+          // CROSS-TAB UPDATE: Notify app about user leaving OTHER tabs
+          if (this.onCrossTabUserLeft) {
+            console.log('[WS] 🔄 Triggering cross-tab update for resource:', data.resourceId);
+            this.onCrossTabUserLeft(data);
           }
         });
       }
@@ -1035,6 +1055,15 @@
 
         this.wsService.onEvent = (type, message, data) => {
           this.addEventLog(type, message, data);
+        };
+
+        // CROSS-TAB PRESENCE UPDATES
+        this.wsService.onCrossTabUserJoined = (data) => {
+          this.handleCrossTabUserJoined(data);
+        };
+
+        this.wsService.onCrossTabUserLeft = (data) => {
+          this.handleCrossTabUserLeft(data);
         };
 
         this.setupUI();
@@ -1298,6 +1327,104 @@
           }
         });
         console.log('[APP] ✅ updateActiveUsers complete');
+      }
+
+      handleCrossTabUserJoined(data) {
+        console.log('[APP] 🔔 Cross-tab user joined:', data.username, '→', data.resourceId);
+        
+        // Check if this resource belongs to current report
+        if (!this.currentReport) {
+          console.log('[APP] ℹ️ No current report, ignoring cross-tab event');
+          return;
+        }
+
+        const resourceReportId = data.resourceId.split('/')[0];
+        if (resourceReportId !== this.currentReport.id) {
+          console.log('[APP] ℹ️ Event for different report, ignoring');
+          return;
+        }
+
+        // Update userPresenceByResource for the target tab
+        if (!this.userPresenceByResource[data.resourceId]) {
+          this.userPresenceByResource[data.resourceId] = [];
+        }
+
+        const existingIndex = this.userPresenceByResource[data.resourceId].findIndex(u => u.userId === data.userId);
+        if (existingIndex === -1) {
+          this.userPresenceByResource[data.resourceId].push({
+            userId: data.userId,
+            username: data.username,
+            email: data.email,
+            socketId: data.socketId,
+            mode: data.mode,
+            joinedAt: data.joinedAt
+          });
+          console.log('[APP] ➕ Added user to resource:', data.resourceId);
+        }
+
+        // Re-render badges and report cards
+        this.updateAllTabBadges();
+        this.renderReportsList();
+      }
+
+      handleCrossTabUserLeft(data) {
+        console.log('[APP] 🔔 Cross-tab user left:', data.username, '←', data.resourceId);
+        
+        // Check if this resource belongs to current report
+        if (!this.currentReport) {
+          console.log('[APP] ℹ️ No current report, ignoring cross-tab event');
+          return;
+        }
+
+        const resourceReportId = data.resourceId.split('/')[0];
+        if (resourceReportId !== this.currentReport.id) {
+          console.log('[APP] ℹ️ Event for different report, ignoring');
+          return;
+        }
+
+        // Remove user from userPresenceByResource
+        if (this.userPresenceByResource[data.resourceId]) {
+          this.userPresenceByResource[data.resourceId] = 
+            this.userPresenceByResource[data.resourceId].filter(u => u.userId !== data.userId);
+          console.log('[APP] ➖ Removed user from resource:', data.resourceId);
+        }
+
+        // Re-render badges and report cards
+        this.updateAllTabBadges();
+        this.renderReportsList();
+      }
+
+      updateAllTabBadges() {
+        if (!this.currentReport) return;
+        
+        console.log('[APP] 🏷️ Updating ALL tab badges (cross-tab event)');
+        document.querySelectorAll('.tab-button').forEach(btn => {
+          const tabId = btn.dataset.tab;
+          const tabResourceId = `${this.currentReport.id}/${tabId}`;
+          const tabUsers = this.userPresenceByResource[tabResourceId] || [];
+          const badge = btn.querySelector('.tab-users-count');
+          
+          // Count OTHER users (exclude yourself)
+          const otherUsers = tabUsers.filter(u => u.userId !== this.wsService.currentUser.userId);
+          const otherUsersCount = otherUsers.length;
+          
+          console.log('[APP]   - Tab:', tabId, '| Total:', tabUsers.length, '| Others:', otherUsersCount);
+          
+          // Show badge only if there are OTHER users
+          if (otherUsersCount > 0) {
+            const tooltipText = otherUsers.map(u => `${u.username} (${u.mode})`).join(', ');
+            if (!badge) {
+              btn.innerHTML += `<span class="tab-users-count" title="${tooltipText}">${otherUsersCount}</span>`;
+            } else {
+              badge.textContent = otherUsersCount;
+              badge.title = tooltipText;
+            }
+          } else {
+            if (badge) {
+              badge.remove();
+            }
+          }
+        });
       }
 
       showReportsList() {
