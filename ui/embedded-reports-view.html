@@ -322,11 +322,24 @@
       font-weight: 600;
       background: var(--gray-200);
       color: var(--gray-700);
+      cursor: help;
+      transition: all 0.2s;
+    }
+
+    .tab-users-count:hover {
+      background: var(--gray-700);
+      color: white;
+      transform: scale(1.1);
     }
 
     .tab-button.active .tab-users-count {
       background: var(--primary-color);
       color: white;
+    }
+
+    .tab-button.active .tab-users-count:hover {
+      background: #1d4ed8;
+      transform: scale(1.1);
     }
 
     .tab-content {
@@ -760,7 +773,11 @@
         });
 
         this.socket.on('user:joined', (data) => {
-          console.log('[WS] 📥 user:joined event received:', data);
+          console.log('[WS] � user:joined event received:', data);
+          console.log('[WS] 🔍 Current resource:', this.currentResourceId);
+          console.log('[WS] 🔍 Event resourceId:', data.resourceId);
+          console.log('[WS] 🔍 Is same resource?', data.resourceId === this.currentResourceId);
+          
           const existingIndex = this.activeUsers.findIndex(u => u.userId === data.userId);
           if (existingIndex === -1) {
             console.log('[WS] ➕ Adding new user to activeUsers:', data.username);
@@ -772,6 +789,8 @@
               mode: data.mode,
               joinedAt: data.joinedAt
             });
+            console.log('[WS] 📋 Updated active users list:', this.activeUsers.map(u => u.username).join(', '));
+            console.log('[WS] 🔄 Triggering UI update via onUsersChange callback');
             if (this.onUsersChange) {
               console.log('[WS] 🔄 Calling onUsersChange with', this.activeUsers.length, 'users');
               this.onUsersChange(this.activeUsers);
@@ -782,11 +801,19 @@
         });
 
         this.socket.on('user:left', (data) => {
-          console.log('[WS] 📥 user:left event received:', data);
+          console.log('[WS] � user:left event received:', data);
+          console.log('[WS] 🔍 Current resource:', this.currentResourceId);
+          console.log('[WS] 🔍 Event resourceId:', data.resourceId);
+          console.log('[WS] 🔍 Is same resource?', data.resourceId === this.currentResourceId);
+          
           const beforeCount = this.activeUsers.length;
           this.activeUsers = this.activeUsers.filter(u => u.userId !== data.userId);
           const afterCount = this.activeUsers.length;
+          
           console.log('[WS] ➖ Removed user. Before:', beforeCount, 'After:', afterCount);
+          console.log('[WS] 📋 Remaining active users:', this.activeUsers.map(u => u.username).join(', ') || '(none)');
+          console.log('[WS] 🔄 Triggering UI update via onUsersChange callback');
+          
           if (this.onUsersChange) {
             console.log('[WS] 🔄 Calling onUsersChange with', this.activeUsers.length, 'users');
             this.onUsersChange(this.activeUsers);
@@ -1103,21 +1130,34 @@
         console.log('[APP] 🔄 Re-rendering reports list to update badges');
         this.renderReportsList();
 
-        console.log('[APP] 🔄 Updating tab badges');
+        console.log('[APP] 🏷️ Updating tab badges for all tabs');
         document.querySelectorAll('.tab-button').forEach(btn => {
           const tabId = btn.dataset.tab;
           const tabResourceId = `${this.currentReport.id}/${tabId}`;
           const tabUsers = this.userPresenceByResource[tabResourceId] || [];
           const badge = btn.querySelector('.tab-users-count');
-          console.log('[APP] 📊 Tab:', tabId, 'Users:', tabUsers.length);
-          if (tabUsers.length > 0) {
+          
+          // Count OTHER users (exclude yourself)
+          const otherUsers = tabUsers.filter(u => u.userId !== this.wsService.currentUser.userId);
+          const otherUsersCount = otherUsers.length;
+          
+          console.log('[APP]   - Tab:', tabId, '| Total:', tabUsers.length, '| Others:', otherUsersCount);
+          
+          // Show badge only if there are OTHER users (not just you)
+          if (otherUsersCount > 0) {
+            console.log('[APP]     ✅ Showing badge with OTHER users count:', otherUsersCount);
+            const tooltipText = otherUsers.map(u => `${u.username} (${u.mode})`).join(', ');
             if (!badge) {
-              btn.innerHTML += `<span class="tab-users-count">${tabUsers.length}</span>`;
+              btn.innerHTML += `<span class="tab-users-count" title="${tooltipText}">${otherUsersCount}</span>`;
             } else {
-              badge.textContent = tabUsers.length;
+              badge.textContent = otherUsersCount;
+              badge.title = tooltipText;
             }
-          } else if (badge) {
-            badge.remove();
+          } else {
+            console.log('[APP]     ℹ️ Only you in this tab, hiding badge');
+            if (badge) {
+              badge.remove();
+            }
           }
         });
         console.log('[APP] ✅ updateActiveUsers complete');
